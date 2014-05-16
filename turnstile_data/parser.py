@@ -1,7 +1,18 @@
+import datetime
+from collections import namedtuple
+
 from stations import STATION_CODES
 from collections import Counter
-import datetime
 
+
+StationAudit = namedtuple('StationAudit',
+                          'station_name, '
+                          'station_lines, '
+                          'start_ts, '
+                          'end_ts, '
+                          'type, '
+                          'count'
+                          )
 
 class Parser(object):
 
@@ -36,14 +47,14 @@ class Parser(object):
             for l in f:
                 count_entries = self.parse_line(l)
                 for e in count_entries:
-                    turnstile_counts[e[0:5]] += e[5]
+                    turnstile_counts[(e.station_name, e.station_lines, e.start_ts.date(), e.type)] += e.count
         return turnstile_counts
 
     def parse_line(self, line):
         entries = [e.strip() for e in line.split(',')]
         station_code = tuple(reversed(entries[0:2]))
         station_info = STATION_CODES.get(station_code)
-        if (station_info is not None):
+        if station_info is not None:
             station_name, station_lines = station_info
         else:
             print "Unable to find station mapping for %s" % str(station_code)
@@ -72,7 +83,7 @@ class Parser(object):
             if audit_type != "REGULAR" or ts.minute != 0 or ts.second != 0:
                 continue
             
-            # if this is first audit entry for new device or day, reset entry/exit vals
+            # if this is first audit entry for new device, reset entry/exit vals
             # or if there is a drop in audit values, we have no choice but to reset count
             if (self._current_entry_value == -1 or 
                     self._current_exit_value == -1 or
@@ -84,7 +95,7 @@ class Parser(object):
                 assert entry_val >= self._current_entry_value
                 assert exit_val >= self._current_exit_value
                 
-                new_entry_count = (
+                new_entry_count = StationAudit(
                     self._current_station,
                     self._current_lines,
                     self._last_timestamp,
@@ -93,7 +104,7 @@ class Parser(object):
                     int(entry_val) - self._current_entry_value,
                     )
                 
-                new_exit_count = (
+                new_exit_count = StationAudit(
                     self._current_station,
                     self._current_lines,
                     self._last_timestamp,
